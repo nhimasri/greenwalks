@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Blueprints ---
+
+    function isValidChallenge(challenge) {
+      return challenge.keys().hasAll(['id', 'title', 'description', 'goal', 'current', 'points', 'type']) &&
+             challenge.keys().size() == 7 &&
+             challenge.id is string && challenge.id.size() <= 64 &&
+             challenge.title is string && challenge.title.size() <= 100 &&
+             challenge.description is string && challenge.description.size() <= 500 &&
+             challenge.goal is number &&
+             challenge.current is number &&
+             challenge.points is number &&
+             challenge.type in ['CO2', 'DISTANCE', 'STREAK'];
+    }
+
+    function isValidUserStats(data) {
+      return data.keys().hasAll(['name', 'totalDistance', 'totalCO2Saved', 'streakDays', 'lastActive', 'level', 'experience', 'ecoScore', 'ecoCredits', 'badges', 'challenges']) &&
+             data.keys().size() == 11 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.totalDistance is number && data.totalDistance >= 0 &&
+             data.totalCO2Saved is number && data.totalCO2Saved >= 0 &&
+             data.streakDays is number && data.streakDays >= 0 &&
+             data.lastActive is number &&
+             data.level is number && data.level >= 1 &&
+             data.experience is number && data.experience >= 0 &&
+             data.ecoScore is number && data.ecoScore >= 0 &&
+             data.ecoCredits is number && data.ecoCredits >= 0 &&
+             data.badges is list && data.badges.size() <= 100 &&
+             data.challenges is list && data.challenges.size() <= 10;
+    }
+
+    function isValidUserInfo(data) {
+      return data.keys().hasAll(['email', 'theme']) &&
+             data.keys().size() == 2 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.theme in ['light', 'dark', 'system'];
+    }
+
+    function isValidTrip(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'distance', 'co2Saved', 'duration', 'activity']) &&
+             data.keys().size() == 6 &&
+             data.id is string && data.id.size() <= 64 &&
+             data.timestamp is number &&
+             data.distance is number && data.distance >= 0 &&
+             data.co2Saved is number && data.co2Saved >= 0 &&
+             data.duration is number && data.duration >= 0 &&
+             data.activity in ['WALK', 'CYCLE', 'VEHICLE', 'STILL'];
+    }
+
+    // --- Collection Rules ---
+
+    match /users/{userId} {
+      // Leaderboard access: Anyone signed in can view public stats
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+      
+      // CREATE: Must be owner, verified, and follow schema
+      allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidUserStats(incoming());
+
+      // UPDATE: Tiered Action Logic
+      allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidUserStats(incoming()) && (
+        // Action: Profile Update (name only in public doc)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['name', 'lastActive'])) ||
+        // Action: Track Activity (Stats + Badges + Challenges)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['totalDistance', 'totalCO2Saved', 'streakDays', 'lastActive', 'level', 'experience', 'ecoScore', 'ecoCredits', 'badges', 'challenges']))
+      );
+
+      // DELETE: Forbidden
+      allow delete: if false;
+
+      match /private/info {
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidUserInfo(incoming());
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidUserInfo(incoming());
+        allow delete: if false;
+      }
+
+      match /trips/{tripId} {
+        // LIST: Secure query enforcement
+        allow list: if isOwner(userId);
+        
+        allow get: if isOwner(userId) && isValidId(tripId);
+        
+        // CREATE: Immutable trips
+        allow create: if isOwner(userId) && isVerified() && isValidId(tripId) && isValidTrip(incoming());
+        
+        // UPDATE: Immutable
+        allow update: if false;
+        
+        allow delete: if isOwner(userId) && isVerified() && isValidId(tripId);
+      }
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar": { "type": "string" }
+      },
+      "required": ["name", "email"]
+    },
+    "Challenge": {
+      "title": "Challenge",
+      "description": "Sustainability challenge tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "goal": { "type": "number" },
+        "current": { "type": "number" },
+        "points": { "type": "number" },
+        "type": { "type": "string", "enum": ["CO2", "DISTANCE", "STREAK"] }
+      },
+      "required": ["id", "title", "description", "goal", "current", "points", "type"]
+    },
+    "UserStats": {
+      "title": "UserStats",
+      "description": "Aggregated user sustainability statistics",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "totalDistance": { "type": "number" },
+        "totalCO2Saved": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "lastActive": { "type": "number" },
+        "level": { "type": "number" },
+        "experience": { "type": "number" },
+        "ecoScore": { "type": "number" },
+        "ecoCredits": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "challenges": { "type": "array", "items": { "$ref": "Challenge" } }
+      },
+      "required": ["name", "totalDistance", "totalCO2Saved", "streakDays", "lastActive", "level", "experience", "ecoScore", "ecoCredits", "badges", "challenges"]
+    },
+    "UserInfo": {
+      "title": "UserInfo",
+      "description": "Private user information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "theme": { "type": "string", "enum": ["light", "dark", "system"] }
+      },
+      "required": ["email", "theme"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "Indivdual trip record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "distance": { "type": "number" },
+        "co2Saved": { "type": "number" },
+        "duration": { "type": "number" },
+        "activity": { "type": "string", "enum": ["WALK", "CYCLE", "VEHICLE", "STILL"] }
+      },
+      "required": ["id", "timestamp", "distance", "co2Saved", "duration", "activity"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserStats",
+      "description": "Public user statistics and badges"
+    },
+    "/users/{userId}/private/info": {
+      "schema": "UserInfo",
+      "description": "Private user information (PII)"
+    },
+    "/users/{userId}/trips/{tripId}": {
+      "schema": "Trip",
+      "description": "Historical trip records for the user"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "GreenWalks-Final",
+  "description": "Track your eco-friendly travel and save the planet one step at a time. Earn rewards, climb leaderboards, and reduce your carbon footprint.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
